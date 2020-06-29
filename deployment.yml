@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nodejs
+spec:
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 3
+      maxUnavailable: 0            # to ensure all the replicas are avaliable all the time 
+  selector:
+    matchLabels:
+      app: nodejs
+  replicas: 10
+  template:
+    metadata:
+      labels:
+        app: nodejs
+    spec:
+      containers:
+      - name: nodejs
+        image: xxxxxxxxxxxx.dkr.ecr.ap-south-1.amazonaws.com/nodejs-test:latest
+        ports:
+        - containerPort: 3000
+        resources:
+          limits:
+            memory: 2048Mi
+            cpu: 400m
+          requests:
+            cpu: 100m
+            memory: 512Mi
+      priorityClassName: system-cluster-critical  #highest priority (for priority greater than deamonset)
+
+      imagePullSecrets:
+      - name: ap-south-1-ecr-registry             # secret to pull image from ECR
+
+
+---
+
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: nodejs-hpa
+  namespace: default
+spec:
+  scaleTargetRef:
+    apiVersion: extensions/v1beta1
+    kind: Deployment
+    name: nodejs
+  minReplicas: 7
+  maxReplicas: 20
+  metrics:
+  - type: Resource
+    resource:
+      name: memory
+      targetAverageUtilization: 60
+  - type: Resource
+    resource:
+      name: cpu
+      targetAverageUtilization: 50
+
+---
+
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: nodejs-service
+spec:
+  selector:
+    app: nodejs
+  ports:
+    - port: 3000
+      targetPort: 3000
+  type: LoadBalancer                        # by defalut this will create classic load balancer 
+  
